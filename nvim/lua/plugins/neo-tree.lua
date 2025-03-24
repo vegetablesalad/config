@@ -1,38 +1,81 @@
 return {
-  "nvim-neo-tree/neo-tree.nvim",
-  branch = "v3.x",
-  dependencies = {
-    "nvim-lua/plenary.nvim",
-    "nvim-tree/nvim-web-devicons",
-    "MunifTanjim/nui.nvim",
-    "3rd/image.nvim",
-  },
-  config = function()
-    require("neo-tree").setup({
-      window = {
-        position = "right",
-      },
+  {
+    "nvim-neo-tree/neo-tree.nvim",
+    opts = {
       filesystem = {
         filtered_items = {
           hide_dotfiles = false,
           hide_gitignored = false,
-          hide_hidden = false,
-          never_show = {
-            ".git",
+        },
+      },
+      window = {
+        position = "right",
+        mappings = {
+          ["J"] = function(state)
+            local tree = state.tree
+            local node = tree:get_node()
+            local siblings = tree:get_nodes(node:get_parent_id())
+            local renderer = require("neo-tree.ui.renderer")
+            renderer.focus_node(state, siblings[#siblings]:get_id())
+          end,
+          ["K"] = function(state)
+            local tree = state.tree
+            local node = tree:get_node()
+            local siblings = tree:get_nodes(node:get_parent_id())
+            local renderer = require("neo-tree.ui.renderer")
+            renderer.focus_node(state, siblings[1]:get_id())
+          end,
+          ["Y"] = {
+            function(state)
+              local node = state.tree:get_node()
+              local absPath = node:get_id()
+              local cwd = vim.fn.getcwd()
+              local relPath = string.gsub(absPath, cwd, "")
+              vim.fn.setreg("+", relPath, "c")
+            end,
+            desc = "Yank relative path",
+          },
+          ["YY"] = {
+            function(state)
+              local node = state.tree:get_node()
+              local absPath = node:get_id()
+              vim.fn.setreg("+", absPath, "c")
+            end,
+            desc = "Yank absolute path",
           },
         },
       },
-    })
+      sort_function = function(a, b)
+        -- Simplified check if a path is in the 'notes' directory
+        local function is_in_notes_directory(path)
+          return string.match(path, "/notes/") or string.match(path, "^notes/")
+        end
 
-    --		vim.keymap.set("n", "<C-n>", ":Neotree filesystem toggle<CR>") -- Ctrl + N to toggle file directory.
-    --		vim.keymap.set("n", "<leader>fr", ":Neotree reveal<CR>")
-  end,
-  filesystem = {
-    filtered_items = {
-      hide_dotfiles = false,
-      hide_by_name = {
-        "node_modules",
-      },
+        -- Get the modification time of a file
+        local function get_mod_time(path)
+          local attributes = vim.loop.fs_stat(path)
+          return attributes and attributes.mtime.sec or 0
+        end
+
+        -- Prioritize directories over files
+        if a.type ~= b.type then
+          return a.type == "directory"
+        end
+
+        local a_in_notes = is_in_notes_directory(a.path)
+        local b_in_notes = is_in_notes_directory(b.path)
+
+        -- If both nodes are files in 'notes' directories, sort by modification time
+        if a_in_notes and b_in_notes and a.type ~= "directory" and b.type ~= "directory" then
+          return get_mod_time(a.path) > get_mod_time(b.path)
+        end
+
+        -- Default sort by name, assuming `name` property or similar is available
+        -- You might need to extract the name from `a.path` and `b.path` if direct comparison is needed
+        local a_name = a.path:match("^.+/(.+)$") or a.path
+        local b_name = b.path:match("^.+/(.+)$") or b.path
+        return a_name < b_name
+      end,
     },
   },
 }

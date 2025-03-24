@@ -1,0 +1,6 @@
+{
+  "consoleInfo": {
+    "prefix": "ci",
+    "body": "console.info(${0})"
+  }
+}
